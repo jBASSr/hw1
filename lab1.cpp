@@ -207,8 +207,7 @@ void check_mouse(XEvent *e, Game *game)
 		if (++n < 10)
 			return;
 		int y = WINDOW_HEIGHT - e->xbutton.y;
-		makeParticle(game, e->xbutton.x, y);
-		
+		makeParticle(game, e->xbutton.x, y);	
 	}
 }
 
