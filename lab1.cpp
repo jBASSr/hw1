@@ -38,7 +38,7 @@
 #define WINDOW_WIDTH  800
 #define WINDOW_HEIGHT 600
 
-#define MAX_PARTICLES 1
+#define MAX_PARTICLES 1000
 #define GRAVITY 0.1
 
 //X Windows variables
@@ -65,7 +65,7 @@ struct Particle {
 
 struct Game {
 	Shape box;
-	Particle particle;
+	Particle particle[MAX_PARTICLES];
 	int n;
 };
 
@@ -169,9 +169,9 @@ void init_opengl(void)
 void makeParticle(Game *game, int x, int y) {
 	if (game->n >= MAX_PARTICLES)
 		return;
-	std::cout << "makeParticle() " << x << " " << y << std::endl;
+	//std::cout << "makeParticle() " << x << " " << y << std::endl;
 	//position of particle
-	Particle *p = &game->particle;
+	Particle *p = &game->particle[game->n];
 	p->s.center.x = x;
 	p->s.center.y = y;
 	p->velocity.y = -4.0;
@@ -206,6 +206,9 @@ void check_mouse(XEvent *e, Game *game)
 		savey = e->xbutton.y;
 		if (++n < 10)
 			return;
+		int y = WINDOW_HEIGHT - e->xbutton.y;
+		makeParticle(game, e->xbutton.x, y);
+		
 	}
 }
 
@@ -230,18 +233,29 @@ void movement(Game *game)
 	if (game->n <= 0)
 		return;
 
-	p = &game->particle;
-	p->s.center.x += p->velocity.x;
-	p->s.center.y += p->velocity.y;
+	for (int i=0; i<game->n; i++) {
+		p = &game->particle[i];
+		p->s.center.x += p->velocity.x;
+		p->s.center.y += p->velocity.y;
 
-	//check for collision with shapes...
-	//Shape *s;
+		//gravity
+		p->velocity.y -= 0.1;
 
+		//check for collision with shapes...
+		Shape *s;
+		s = &game->box;
+		if (p->s.center.y >= s->center.y - (s->height) &&
+		    p->s.center.y <= s->center.y + (s->height) &&
+		    p->s.center.x >= s->center.x - (s->width) &&
+		    p->s.center.x <= s->center.x + (s->width))
+			    p->velocity.y *= -1.0;
 
-	//check for off-screen
-	if (p->s.center.y < 0.0) {
-		std::cout << "off screen" << std::endl;
-		game->n = 0;
+		//check for off-screen
+		if (p->s.center.y < 0.0) {
+			std::cout << "off screen" << std::endl;
+			game->particle[i] = game->particle[game->n-1];
+			game->n -= 1;
+		}
 	}
 }
 
@@ -270,16 +284,18 @@ void render(Game *game)
 	//draw all particles here
 	glPushMatrix();
 	glColor3ub(150,160,220);
-	Vec *c = &game->particle.s.center;
-	w = 2;
-	h = 2;
-	glBegin(GL_QUADS);
-		glVertex2i(c->x-w, c->y-h);
-		glVertex2i(c->x-w, c->y+h);
-		glVertex2i(c->x+w, c->y+h);
-		glVertex2i(c->x+w, c->y-h);
-	glEnd();
-	glPopMatrix();
+	for (int i=0; i<game->n; i++) {
+		Vec *c = &game->particle[i].s.center;
+		w = 2;
+		h = 2;
+		glBegin(GL_QUADS);
+			glVertex2i(c->x-w, c->y-h);
+			glVertex2i(c->x-w, c->y+h);
+			glVertex2i(c->x+w, c->y+h);
+			glVertex2i(c->x+w, c->y-h);
+		glEnd();
+		glPopMatrix();
+	}
 }
 
 
