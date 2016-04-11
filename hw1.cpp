@@ -34,11 +34,14 @@
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 #include <GL/glx.h>
+extern "C" {
+	#include "fonts.h"
+}
 
 #define WINDOW_WIDTH  800
 #define WINDOW_HEIGHT 600
 
-#define MAX_PARTICLES 1000
+#define MAX_PARTICLES 2000
 #define GRAVITY 0.1
 
 //X Windows variables
@@ -65,6 +68,7 @@ struct Particle {
 
 struct Game {
 	Shape box[5];
+	Shape circle;
 	Particle particle[MAX_PARTICLES];
 	int n;
 };
@@ -77,7 +81,11 @@ void check_mouse(XEvent *e, Game *game);
 int check_keys(XEvent *e, Game *game);
 void movement(Game *game);
 void render(Game *game);
+void physics(Game *game);
 
+//Variables
+int startWater = 0;
+double r1, r2 = 1.0;
 
 int main(void)
 {
@@ -88,21 +96,24 @@ int main(void)
 	//declare game object
 	Game game;
 	game.n=0;
-
+	//declare a circle shape
+	game.circle.radius = 220;
+	game.circle.center.x = 660;
+	game.circle.center.y = 200 - 5*60; 
 	//declare a box shape
-  for (int i = 0; i < 5; i++) {
-    game.box[i].width = 120;
-    game.box[i].height = 20;
-  }
-	game.box[0].center.x = 440;
-	game.box[0].center.y = 460 - 5*60;
-	game.box[1].center.x = 380;
-	game.box[1].center.y = 540 - 5*60;
-	game.box[2].center.x = 300;
-	game.box[2].center.y = 620 - 5*60;
-	game.box[3].center.x = 240;
-	game.box[3].center.y = 700 - 5*60;
-	game.box[4].center.x = 160;
+  	for (int i = 0; i < 5; i++) {
+    	game.box[i].width = 120;
+    	game.box[i].height = 20;
+  	}
+	game.box[0].center.x = 470;
+	game.box[0].center.y = 500 - 5*60;
+	game.box[1].center.x = 390;
+	game.box[1].center.y = 570 - 5*60;
+	game.box[2].center.x = 310;
+	game.box[2].center.y = 640 - 5*60;
+	game.box[3].center.x = 230;
+	game.box[3].center.y = 710 - 5*60;
+	game.box[4].center.x = 150;
 	game.box[4].center.y = 780 - 5*60;
 	//start animation
 	while(!done) {
@@ -114,9 +125,11 @@ int main(void)
 		}
 		movement(&game);
 		render(&game);
+		physics(&game);
 		glXSwapBuffers(dpy, win);
 	}
 	cleanupXWindows();
+	cleanup_fonts();
 	return 0;
 }
 
@@ -124,7 +137,7 @@ void set_title(void)
 {
 	//Set the window title bar.
 	XMapWindow(dpy, win);
-	XStoreName(dpy, win, "335 Lab1   LMB for particle");
+	XStoreName(dpy, win, "335 Lab1 - Jose Reyes - Press 'B' for particles");
 }
 
 void cleanupXWindows(void) {
@@ -173,6 +186,9 @@ void init_opengl(void)
 	glOrtho(0, WINDOW_WIDTH, 0, WINDOW_HEIGHT, -1, 1);
 	//Set the screen background color
 	glClearColor(0.1, 0.1, 0.1, 1.0);
+	//Do this to enable fonts
+	glEnable(GL_TEXTURE_2D);
+	initialize_fonts();
 }
 
 void makeParticle(Game *game, int x, int y) {
@@ -183,9 +199,26 @@ void makeParticle(Game *game, int x, int y) {
 	Particle *p = &game->particle[game->n];
 	p->s.center.x = x;
 	p->s.center.y = y;
-	p->velocity.y = -4.0;
-	p->velocity.x =  1.0;
+	if (r1 > 1.0)
+		r1 = -4.0;
+	r1++;
+	//if (r2 <= 0.2)
+	//	r2 = 2.0;
+	//r2 -= 0.1;
+	if (r2 >= 0.5)
+		r2 = -0.5;
+	r2 += 0.1;
+	p->velocity.y = r1;
+	p->velocity.x = r2;
 	game->n++;
+}
+
+void enableWater(Game *game)
+{
+	if (startWater) {
+		makeParticle(game, 160, 540);
+		//makeParticle(game, 155, 545);
+	}
 }
 
 void check_mouse(XEvent *e, Game *game)
@@ -215,8 +248,8 @@ void check_mouse(XEvent *e, Game *game)
 		savey = e->xbutton.y;
 		if (++n < 10)
 			return;
-		int y = WINDOW_HEIGHT - e->xbutton.y;
-		makeParticle(game, e->xbutton.x, y);	
+		//int y = WINDOW_HEIGHT - e->xbutton.y;
+		//makeParticle(game, e->xbutton.x, y);	
 	}
 }
 
@@ -229,9 +262,11 @@ int check_keys(XEvent *e, Game *game)
 			return 1;
 		}
 		//You may check other keys here.
-    if (key == XK_Control_L) {
-      makeParticle(game, 160, 565	);
-	}
+		switch(key) {
+			case XK_b:
+				startWater ^= 1;
+				break;
+		}
 	}
 	return 0;
 }
@@ -253,14 +288,43 @@ void movement(Game *game)
 
 		//check for collision with shapes...
 		Shape *s;
-    for (int j = 0; j < 5; j++) {
-      s = &game->box[j];
-      if (p->s.center.y >= s->center.y - (s->height) &&
-          p->s.center.y <= s->center.y + (s->height) &&
-          p->s.center.x >= s->center.x - (s->width) &&
-          p->s.center.x <= s->center.x + (s->width))
-            p->velocity.y *= -0.50;
-    }
+		//Rectangle collision detection
+		for (int j = 0; j < 5; j++) {
+			s = &game->box[j];
+			if (p->s.center.y >= s->center.y - (s->height) &&
+				p->s.center.y <= s->center.y + (s->height) &&
+				p->s.center.x >= s->center.x - (s->width) &&
+				p->s.center.x <= s->center.x + (s->width)) {
+					p->velocity.y *= -0.55;
+					if (p->velocity.x >= 1.30)
+						p->velocity.x = 0.2;
+					p->velocity.x += 0.1;
+				}
+					
+		}
+		Shape *c;
+		c = &game->circle;
+		//std::cout << p->velocity.y << " " << p->velocity.x << std::endl;
+		//Circle sweep collision detection
+		for (int k=0; k<360; k++) {
+			double xd = c->center.x - p->s.center.x;
+			double yd = c->center.y - p->s.center.y;
+			double dist = sqrt( (pow(xd,2)) + (pow(yd,2)) );
+			if (dist <= c->radius) {
+				double cx = p->s.center.y - c->center.y;
+				double cy = p->s.center.x - c->center.x;
+				//std::cout << p->velocity.y << " " << p->velocity.x << std::endl;
+				p->velocity.y = (cx/dist);
+				p->velocity.x = (cy/dist)*3.0;
+			}
+		}
+		//Circle collision
+		//dist = sqrt( (x diff)^2 + (y diff)^2) )
+		//apply penalty to velocity
+		//surface normal vector
+		//p.x - c.x = vx/dist
+		//p.y - c.y = vy/dist
+		
 		//check for off-screen
 		if (p->s.center.y < 0.0) {
 			//std::cout << "off screen" << std::endl;
@@ -270,37 +334,63 @@ void movement(Game *game)
 	}
 }
 
+void physics(Game *game)
+{
+	if (startWater)
+		enableWater(game);
+}
+
 void render(Game *game)
 {
-	float w, h;
+	float w, h, r;
 	glClear(GL_COLOR_BUFFER_BIT);
 	//Draw shapes...
+	//Circle
+	Shape *c;
+	glColor3ub(90, 140, 90);
+	c = &game->circle;
+	glPushMatrix();
+	glTranslatef(c->center.x, c->center.y, c->center.z);
+	r = c->radius;
+	glBegin(GL_TRIANGLE_FAN);
+	for (int i=0; i < 360; i++) {
+		float deg2rad = i*(3.14159/180);
+		glVertex2d(cos(deg2rad)*r, sin(deg2rad)*r);
+	}
+	glEnd();
+	glPopMatrix();
 
 	//draw box
 	Shape *s;
 	glColor3ub(90,140,90);
-  for (int i = 0; i < 5; i++) {
-    s = &game->box[i];
-    glPushMatrix();
-    glTranslatef(s->center.x, s->center.y, s->center.z);
-    w = s->width;
-    h = s->height;
-    glBegin(GL_QUADS);
-    glVertex2i(-w,-h);
-    glVertex2i(-w, h);
-    glVertex2i( w, h);
-    glVertex2i( w,-h);
-    glEnd();
-    glPopMatrix();
-  }
+	for (int i = 0; i < 5; i++) {
+		s = &game->box[i];
+		glPushMatrix();
+		glTranslatef(s->center.x, s->center.y, s->center.z);
+		w = s->width;
+		h = s->height;
+		glBegin(GL_QUADS);
+		glVertex2i(-w,-h);
+		glVertex2i(-w, h);
+		glVertex2i( w, h);
+		glVertex2i( w,-h);
+		glEnd();
+		glPopMatrix();
+	}
 
 	//draw all particles here
 	glPushMatrix();
 	glColor3ub(150,160,220);
 	for (int i=0; i<game->n; i++) {
+		if (i%2 == 0)
+			glColor3ub(150,160,220);
+		if (i%3 == 0)
+			glColor3ub(95,130,185);
+		if (i%5 == 0)
+			glColor3ub(155,186,220);
 		Vec *c = &game->particle[i].s.center;
-		w = 2;
-		h = 2;
+		w = 2.75;
+		h = 2.75;
 		glBegin(GL_QUADS);
 			glVertex2i(c->x-w, c->y-h);
 			glVertex2i(c->x-w, c->y+h);
@@ -309,6 +399,27 @@ void render(Game *game)
 		glEnd();
 		glPopMatrix();
 	}
+	//draw text
+	Rect rt;
+	rt.bot = WINDOW_HEIGHT - 20;
+	rt.left = 10;
+	rt.center = 0;
+	ggprint8b(&rt, 16, 0x00ffffff, "Waterfall Model - Jose R.");
+	rt.bot = WINDOW_HEIGHT - 130;
+	rt.left = 90;
+	ggprint16(&rt, 20, 0x00ffff00, "Requirements");
+	rt.bot = WINDOW_HEIGHT - 200;
+	rt.left = 200;
+	ggprint16(&rt, 20, 0x00ffff00, "Design");
+	rt.bot = WINDOW_HEIGHT - 270;
+	rt.left = 280;
+	ggprint16(&rt, 20, 0x00ffff00, "Coding");
+	rt.bot = WINDOW_HEIGHT - 340;
+	rt.left = 360;
+	ggprint16(&rt, 20, 0x00ffff00, "Testing");
+	rt.bot = WINDOW_HEIGHT - 410;
+	rt.left = 420;
+	ggprint16(&rt, 20, 0x00ffff00, "Maintenance");
 }
 
 
