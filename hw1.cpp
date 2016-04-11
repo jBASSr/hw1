@@ -1,5 +1,8 @@
-//cs335 Spring 2015 Lab-1
-//This program demonstrates the use of OpenGL and XWindows
+//CS335 Spring 2015 Lab-1
+//Name: Jose Reyes
+//Program: Waterfall Model
+//Date: April 11, 2016
+//Purpose: This program demonstrates the use of OpenGL and XWindows
 //
 //Assignment is to modify this program.
 //You will follow along with your instructor.
