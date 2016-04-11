@@ -191,7 +191,8 @@ void init_opengl(void)
 	initialize_fonts();
 }
 
-void makeParticle(Game *game, int x, int y) {
+void makeParticle(Game *game, int x, int y) 
+{
 	if (game->n >= MAX_PARTICLES)
 		return;
 	//std::cout << "makeParticle() " << x << " " << y << std::endl;
@@ -262,7 +263,7 @@ int check_keys(XEvent *e, Game *game)
 			return 1;
 		}
 		//You may check other keys here.
-		switch(key) {
+		switch (key) {
 			case XK_b:
 				startWater ^= 1;
 				break;
